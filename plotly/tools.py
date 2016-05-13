@@ -5187,9 +5187,8 @@ class _Distplot(FigureFactory):
 class _Dendrogram(FigureFactory):
     """Refer to FigureFactory.create_dendrogram() for docstring."""
 
-    def __init__(self, X, orientation='bottom', labels=None, colorscale=None,
-                 width="100%", height="100%", xaxis='xaxis', yaxis='yaxis',
-                 DistMetric = 'euclidean', LinkageMethod = 'complete' ):
+    def __init__(self, X, DistMetric, LinkageMethod, orientation='bottom', labels=None, colorscale=None,
+                 width="100%", height="100%", xaxis='xaxis', yaxis='yaxis'):
         # TODO: protected until #282
         from plotly.graph_objs import graph_objs
         self.orientation = orientation
