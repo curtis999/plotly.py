@@ -5194,6 +5194,7 @@ class _Dendrogram(FigureFactory):
         from plotly.graph_objs import graph_objs
         self.orientation = orientation
         self.DistMetric = DistMetric
+        print self.DistMetric
         self.LinkageMethod = LinkageMethod
         self.labels = labels
         self.xaxis = xaxis
