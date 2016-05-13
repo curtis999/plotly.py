@@ -4265,7 +4265,8 @@ class FigureFactory(object):
         s = X.shape
         if len(s) != 2:
             exceptions.PlotlyError("X should be 2-dimensional array.")
-
+        import ipdb
+        ipdb.set_trace()
         dendrogram = _Dendrogram(X, orientation, labels, colorscale, DistMetric , LinkageMethod )
 
         return {'layout': dendrogram.layout,
@@ -5193,7 +5194,9 @@ class _Dendrogram(FigureFactory):
         from plotly.graph_objs import graph_objs
         self.orientation = orientation
         self.DistMetric = DistMetric
-        print self.DistMetric
+        import ipdb
+        ipdb.set_trace()
+        # print self.DistMetric
         self.LinkageMethod = LinkageMethod
         self.labels = labels
         self.xaxis = xaxis
