@@ -4203,7 +4203,7 @@ class FigureFactory(object):
 
     @staticmethod
     def create_dendrogram(X, orientation="bottom", labels=None,
-                          colorscale=None):
+                          colorscale=None, DistMetric = 'euclidean', LinkageMethod = 'complete' ):
         """
         BETA function that returns a dendrogram Plotly figure object.
 
@@ -4266,7 +4266,7 @@ class FigureFactory(object):
         if len(s) != 2:
             exceptions.PlotlyError("X should be 2-dimensional array.")
 
-        dendrogram = _Dendrogram(X, orientation, labels, colorscale)
+        dendrogram = _Dendrogram(X, orientation, labels, colorscale, DistMetric , LinkageMethod )
 
         return {'layout': dendrogram.layout,
                 'data': dendrogram.data}
@@ -5188,7 +5188,8 @@ class _Dendrogram(FigureFactory):
     """Refer to FigureFactory.create_dendrogram() for docstring."""
 
     def __init__(self, X, orientation='bottom', labels=None, colorscale=None,
-                 width="100%", height="100%", xaxis='xaxis', yaxis='yaxis'):
+                 width="100%", height="100%", xaxis='xaxis', yaxis='yaxis',
+                 DistMetric = 'euclidean', LinkageMethod = 'complete' ):
         # TODO: protected until #282
         from plotly.graph_objs import graph_objs
         self.orientation = orientation
@@ -5211,7 +5212,7 @@ class _Dendrogram(FigureFactory):
             self.sign[self.yaxis] = -1
 
         (dd_traces, xvals, yvals,
-            ordered_labels, leaves) = self.get_dendrogram_traces(X, colorscale)
+            ordered_labels, leaves) = self.get_dendrogram_traces(X, colorscale, DistMetric, LinkageMethod)
 
         self.labels = ordered_labels
         self.leaves = leaves
@@ -5320,7 +5321,7 @@ class _Dendrogram(FigureFactory):
 
         return self.layout
 
-    def get_dendrogram_traces(self, X, colorscale):
+    def get_dendrogram_traces(self, X, colorscale, DistMetric, LinkageMethod):
         """
         Calculates all the elements needed for plotting a dendrogram.
 
@@ -5339,8 +5340,8 @@ class _Dendrogram(FigureFactory):
         """
         # TODO: protected until #282
         from plotly.graph_objs import graph_objs
-        d = scs.distance.pdist(X)
-        Z = sch.linkage(d, method='complete')
+        d = scs.distance.pdist(X, metric= DistMetric)
+        Z = sch.linkage(d, method=LinkageMethod)
         P = sch.dendrogram(Z, orientation=self.orientation,
                            labels=self.labels, no_plot=True)
 
