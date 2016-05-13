@@ -4265,8 +4265,7 @@ class FigureFactory(object):
         s = X.shape
         if len(s) != 2:
             exceptions.PlotlyError("X should be 2-dimensional array.")
-        import ipdb
-        ipdb.set_trace()
+
         dendrogram = _Dendrogram(X, orientation, labels, colorscale, DistMetric , LinkageMethod )
 
         return {'layout': dendrogram.layout,
@@ -5188,15 +5187,13 @@ class _Distplot(FigureFactory):
 class _Dendrogram(FigureFactory):
     """Refer to FigureFactory.create_dendrogram() for docstring."""
 
-    def __init__(self, X, DistMetric, LinkageMethod, orientation='bottom', labels=None, colorscale=None,
+    def __init__(self, X, orientation='bottom', labels=None, colorscale=None,
+                 DistMetric = 'euclidean', LinkageMethod = 'complete',
                  width="100%", height="100%", xaxis='xaxis', yaxis='yaxis'):
         # TODO: protected until #282
         from plotly.graph_objs import graph_objs
         self.orientation = orientation
         self.DistMetric = DistMetric
-        import ipdb
-        ipdb.set_trace()
-        # print self.DistMetric
         self.LinkageMethod = LinkageMethod
         self.labels = labels
         self.xaxis = xaxis
