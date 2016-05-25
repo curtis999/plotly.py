@@ -5222,10 +5222,15 @@ class _Dendrogram(FigureFactory):
         xvals_flat = xvals.flatten()
 
         self.zero_vals = []
+        if orientation == 'bottom':
+            for i in range(len(yvals_flat)):
+                if yvals_flat[i] == 0.0 and xvals_flat[i] not in self.zero_vals:
+                    self.zero_vals.append(xvals_flat[i])
+        elif orientation == 'right' or orientation == 'left':
+            for i in range(len(xvals_flat)):
+                if xvals_flat[i] == 0.0 and yvals_flat[i] not in self.zero_vals:
+                    self.zero_vals.append(yvals_flat[i])
 
-        for i in range(len(yvals_flat)):
-            if yvals_flat[i] == 0.0 and xvals_flat[i] not in self.zero_vals:
-                self.zero_vals.append(xvals_flat[i])
 
         self.zero_vals.sort()
 
