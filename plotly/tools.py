@@ -1931,11 +1931,10 @@ class FigureFactory(object):
         diff_1 = float(highcolor[1] - lowcolor[1])
         diff_2 = float(highcolor[2] - lowcolor[2])
 
-        new_tuple = (lowcolor[0] + intermed*diff_0,
-                     lowcolor[1] + intermed*diff_1,
-                     lowcolor[2] + intermed*diff_2)
-
-        return new_tuple
+        inter_colors = np.array([lowcolor[0] + intermed * diff_0,
+                                 lowcolor[1] + intermed * diff_1,
+                                 lowcolor[2] + intermed * diff_2])
+        return inter_colors
 
     @staticmethod
     def _unconvert_from_RGB_255(colors):
@@ -1958,7 +1957,7 @@ class FigureFactory(object):
         return un_rgb_colors
 
     @staticmethod
-    def _map_z2color(zval, colormap, vmin, vmax):
+    def _map_z2color(zvals, colormap, vmin, vmax):
         """
         Returns the color corresponding zval's place between vmin and vmax
 
@@ -1975,25 +1974,18 @@ class FigureFactory(object):
                                          "of vmax.")
         # find distance t of zval from vmin to vmax where the distance
         # is normalized to be between 0 and 1
-        t = (zval - vmin)/float((vmax - vmin))
-        t_color = FigureFactory._find_intermediate_color(colormap[0],
-                                                         colormap[1],
-                                                         t)
-        t_color = (t_color[0]*255.0, t_color[1]*255.0, t_color[2]*255.0)
-        labelled_color = 'rgb{}'.format(t_color)
-
-        return labelled_color
-
-    @staticmethod
-    def _tri_indices(simplices):
-        """
-        Returns a triplet of lists containing simplex coordinates
-        """
-        return ([triplet[c] for triplet in simplices] for c in range(3))
+        t = (zvals - vmin) / float((vmax - vmin))
+        t_colors = FigureFactory._find_intermediate_color(colormap[0],
+                                                          colormap[1],
+                                                          t)
+        t_colors = t_colors * 255.
+        labelled_colors = ['rgb(%s, %s, %s)' % (i, j, k)
+                           for i, j, k in t_colors.T]
+        return labelled_colors
 
     @staticmethod
-    def _trisurf(x, y, z, simplices, colormap=None, dist_func=None,
-                 plot_edges=None, x_edge=None, y_edge=None, z_edge=None):
+    def _trisurf(x, y, z, simplices, colormap=None, color_func=None,
+                 plot_edges=False, x_edge=None, y_edge=None, z_edge=None):
         """
         Refer to FigureFactory.create_trisurf() for docstring
         """
@@ -2006,11 +1998,11 @@ class FigureFactory(object):
         points3D = np.vstack((x, y, z)).T
 
         # vertices of the surface triangles
-        tri_vertices = list(map(lambda index: points3D[index], simplices))
+        tri_vertices = points3D[simplices]
 
-        if not dist_func:
+        if not color_func:
             # mean values of z-coordinates of triangle vertices
-            mean_dists = [np.mean(tri[:, 2]) for tri in tri_vertices]
+            mean_dists = tri_vertices[:, :, 2].mean(-1)
         else:
             # apply user inputted function to calculate
             # custom coloring for triangle vertices
@@ -2019,45 +2011,56 @@ class FigureFactory(object):
             for triangle in tri_vertices:
                 dists = []
                 for vertex in triangle:
-                    dist = dist_func(vertex[0], vertex[1], vertex[2])
+                    dist = color_func(vertex[0], vertex[1], vertex[2])
                     dists.append(dist)
 
                 mean_dists.append(np.mean(dists))
 
         min_mean_dists = np.min(mean_dists)
         max_mean_dists = np.max(mean_dists)
-        facecolor = ([FigureFactory._map_z2color(zz, colormap, min_mean_dists,
-                      max_mean_dists) for zz in mean_dists])
-        ii, jj, kk = FigureFactory._tri_indices(simplices)
+        facecolor = FigureFactory._map_z2color(mean_dists,
+                                               colormap,
+                                               min_mean_dists,
+                                               max_mean_dists)
 
+        ii, jj, kk = zip(*simplices)
         triangles = graph_objs.Mesh3d(x=x, y=y, z=z, facecolor=facecolor,
                                       i=ii, j=jj, k=kk, name='')
 
-        if plot_edges is None:  # the triangle sides are not plotted
+        if plot_edges is not True:  # the triangle sides are not plotted
             return graph_objs.Data([triangles])
 
         # define the lists x_edge, y_edge and z_edge, of x, y, resp z
         # coordinates of edge end points for each triangle
         # None separates data corresponding to two consecutive triangles
-        lists_coord = ([[[T[k % 3][c] for k in range(4)]+[None]
-                        for T in tri_vertices] for c in range(3)])
-        if x_edge is None:
-            x_edge = []
-        for array in lists_coord[0]:
-            for item in array:
-                x_edge.append(item)
+        is_none = [ii is None for ii in [x_edge, y_edge, z_edge]]
+        if any(is_none):
+            if not all(is_none):
+                raise ValueError("If any (x_edge, y_edge, z_edge) is None, "
+                                 "all must be None")
+            else:
+                x_edge = []
+                y_edge = []
+                z_edge = []
 
-        if y_edge is None:
-            y_edge = []
-        for array in lists_coord[1]:
-            for item in array:
-                y_edge.append(item)
+        # Pull indices we care about, then add a None column to separate tris
+        ixs_triangles = [0, 1, 2, 0]
+        pull_edges = tri_vertices[:, ixs_triangles, :]
+        x_edge_pull = np.hstack([pull_edges[:, :, 0],
+                                 np.tile(None, [pull_edges.shape[0], 1])])
+        y_edge_pull = np.hstack([pull_edges[:, :, 1],
+                                 np.tile(None, [pull_edges.shape[0], 1])])
+        z_edge_pull = np.hstack([pull_edges[:, :, 2],
+                                 np.tile(None, [pull_edges.shape[0], 1])])
 
-        if z_edge is None:
-            z_edge = []
-        for array in lists_coord[2]:
-            for item in array:
-                z_edge.append(item)
+        # Now unravel the edges into a 1-d vector for plotting
+        x_edge = np.hstack([x_edge, x_edge_pull.reshape([1, -1])[0]])
+        y_edge = np.hstack([y_edge, y_edge_pull.reshape([1, -1])[0]])
+        z_edge = np.hstack([z_edge, z_edge_pull.reshape([1, -1])[0]])
+
+        if not (len(x_edge) == len(y_edge) == len(z_edge)):
+            raise exceptions.PlotlyError("The lengths of x_edge, y_edge and "
+                                         "z_edge are not the same.")
 
         # define the lines for plotting
         lines = graph_objs.Scatter3d(
@@ -2069,8 +2072,8 @@ class FigureFactory(object):
         return graph_objs.Data([triangles, lines])
 
     @staticmethod
-    def create_trisurf(x, y, z, simplices, colormap=None,
-                       dist_func=None, title='Trisurf Plot',
+    def create_trisurf(x, y, z, simplices, colormap=None, color_func=None,
+                       title='Trisurf Plot', plot_edges=True,
                        showbackground=True,
                        backgroundcolor='rgb(230, 230, 230)',
                        gridcolor='rgb(255, 255, 255)',
@@ -2090,12 +2093,13 @@ class FigureFactory(object):
             containing 2 triplets. These triplets must be of the form (a,b,c)
             or 'rgb(x,y,z)' where a,b,c belong to the interval [0,1] and x,y,z
             belong to [0,255]
-        :param (function) dist_func: The function that determines how the
-            coloring of the surface changes. It takes 3 arguments x, y, z and
-            must return a formula of these variables which can include numpy
-            functions (eg. np.sqrt). If set to None, color will only depend on
-            the z axis.
+        :param (function|list) color_func: The parameter that determines the
+            coloring of the surface. Takes either a function with 3 arguments
+            x, y, z or a list/array of color values the same length as
+            simplices. If set to None, color will only depend on the z axis.
         :param (str) title: title of the plot
+        :param (bool) plot_edges: determines if the triangles on the trisurf
+            are visible
         :param (bool) showbackground: makes background in plot visible
         :param (str) backgroundcolor: color of background. Takes a string of
             the form 'rgb(x,y,z)' x,y,z are between 0 and 255 inclusive.
@@ -2242,7 +2246,7 @@ class FigureFactory(object):
         fig1 = FF.create_trisurf(x=x, y=y, z=z,
                                  colormap="Blues",
                                  simplices=simplices,
-                                 dist_func=dist_origin)
+                                 color_func=dist_origin)
         # Plot the data
         py.iplot(fig1, filename='Trisurf Plot - Custom Coloring')
         ```
@@ -2317,9 +2321,9 @@ class FigureFactory(object):
                                                          "exceed 1.0.")
 
         data1 = FigureFactory._trisurf(x, y, z, simplices,
-                                       dist_func=dist_func,
+                                       color_func=color_func,
                                        colormap=colormap,
-                                       plot_edges=True)
+                                       plot_edges=plot_edges)
         axis = dict(
             showbackground=showbackground,
             backgroundcolor=backgroundcolor,
