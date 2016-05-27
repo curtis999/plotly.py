@@ -44,13 +44,60 @@ class TestDistplot(TestCase):
         self.assertRaises(PlotlyError, tls.FigureFactory.create_distplot,
                           **kwargs)
 
-    def test_simple_distplot(self):
+    def test_simple_distplot_prob_density(self):
 
         # we should be able to create a single distplot with a simple dataset
         # and default kwargs
 
         dp = tls.FigureFactory.create_distplot(hist_data=[[1, 2, 2, 3]],
-                                               group_labels=['distplot'])
+                                               group_labels=['distplot'],
+                                               histnorm='probability density')
+        expected_dp_layout = {'barmode': 'overlay',
+                              'hovermode': 'closest',
+                              'legend': {'traceorder': 'reversed'},
+                              'xaxis1': {'anchor': 'y2', 'domain': [0.0, 1.0], 'zeroline': False},
+                              'yaxis1': {'anchor': 'free', 'domain': [0.35, 1], 'position': 0.0},
+                              'yaxis2': {'anchor': 'x1',
+                                         'domain': [0, 0.25],
+                                         'dtick': 1,
+                                         'showticklabels': False}}
+        self.assertEqual(dp['layout'], expected_dp_layout)
+
+        expected_dp_data_hist = {'autobinx': False,
+                                 'histnorm': 'probability density',
+                                 'legendgroup': 'distplot',
+                                 'marker': {'color': 'rgb(31, 119, 180)'},
+                                 'name': 'distplot',
+                                 'opacity': 0.7,
+                                 'type': 'histogram',
+                                 'x': [1, 2, 2, 3],
+                                 'xaxis': 'x1',
+                                 'xbins': {'end': 3.0, 'size': 1.0, 'start': 1.0},
+                                 'yaxis': 'y1'}
+        self.assertEqual(dp['data'][0], expected_dp_data_hist)
+
+        expected_dp_data_rug = {'legendgroup': 'distplot',
+                                'marker': {'color': 'rgb(31, 119, 180)',
+                                           'symbol': 'line-ns-open'},
+                                'mode': 'markers',
+                                'name': 'distplot',
+                                'showlegend': False,
+                                'text': None,
+                                'type': 'scatter',
+                                'x': [1, 2, 2, 3],
+                                'xaxis': 'x1',
+                                'y': ['distplot', 'distplot',
+                                      'distplot', 'distplot'],
+                                'yaxis': 'y2'}
+        self.assertEqual(dp['data'][2], expected_dp_data_rug)
+
+    def test_simple_distplot_prob(self):
+
+        # we should be able to create a single distplot with a simple dataset
+        # and default kwargs
+
+        dp = tls.FigureFactory.create_distplot(hist_data=[[1, 2, 2, 3]],
+                                               group_labels=['distplot'], histnorm='probability')
         expected_dp_layout = {'barmode': 'overlay',
                               'hovermode': 'closest',
                               'legend': {'traceorder': 'reversed'},
@@ -90,7 +137,7 @@ class TestDistplot(TestCase):
                                 'yaxis': 'y2'}
         self.assertEqual(dp['data'][2], expected_dp_data_rug)
 
-    def test_distplot_more_args(self):
+    def test_distplot_more_args_prob_dens(self):
 
         # we should be able to create a distplot with 2 datasets no
         # rugplot, defined bin_size, and added title
@@ -106,6 +153,69 @@ class TestDistplot(TestCase):
         group_labels = ['2012', '2013']
 
         dp = tls.FigureFactory.create_distplot(hist_data, group_labels,
+                                               histnorm='probability density',
+                                               show_rug=False, bin_size=.2)
+        dp['layout'].update(title='Dist Plot')
+
+        expected_dp_layout = {'barmode': 'overlay',
+                              'hovermode': 'closest',
+                              'legend': {'traceorder': 'reversed'},
+                              'title': 'Dist Plot',
+                              'xaxis1': {'anchor': 'y2', 'domain': [0.0, 1.0],
+                                         'zeroline': False},
+                              'yaxis1': {'anchor': 'free', 'domain': [0.0, 1],
+                                         'position': 0.0}}
+        self.assertEqual(dp['layout'], expected_dp_layout)
+
+        expected_dp_data_hist_1 = {'autobinx': False,
+                                   'histnorm': 'probability density',
+                                   'legendgroup': '2012',
+                                   'marker': {'color': 'rgb(31, 119, 180)'},
+                                   'name': '2012',
+                                   'opacity': 0.7,
+                                   'type': 'histogram',
+                                   'x': [0.8, 1.2, 0.2, 0.6, 1.6, -0.9, -0.07,
+                                         1.95, 0.9, -0.2, -0.5, 0.3, 0.4,
+                                         -0.37, 0.6],
+                                   'xaxis': 'x1',
+                                   'xbins': {'end': 1.95, 'size': 0.2,
+                                             'start': -0.9},
+                                   'yaxis': 'y1'}
+        self.assertEqual(dp['data'][0], expected_dp_data_hist_1)
+
+        expected_dp_data_hist_2 = {'autobinx': False,
+                                   'histnorm': 'probability density',
+                                   'legendgroup': '2013',
+                                   'marker': {'color': 'rgb(255, 127, 14)'},
+                                   'name': '2013',
+                                   'opacity': 0.7,
+                                   'type': 'histogram',
+                                   'x': [0.8, 1.5, 1.5, 0.6, 0.59, 1.0, 0.8,
+                                         1.7, 0.5, 0.8, -0.3, 1.2, 0.56, 0.3,
+                                         2.2],
+                                   'xaxis': 'x1',
+                                   'xbins': {'end': 2.2, 'size': 0.2,
+                                             'start': -0.3},
+                                   'yaxis': 'y1'}
+        self.assertEqual(dp['data'][1], expected_dp_data_hist_2)
+
+    def test_distplot_more_args_prob(self):
+
+        # we should be able to create a distplot with 2 datasets no
+        # rugplot, defined bin_size, and added title
+
+        hist1_x = [0.8, 1.2, 0.2, 0.6, 1.6,
+                   -0.9, -0.07, 1.95, 0.9, -0.2,
+                   -0.5, 0.3, 0.4, -0.37, 0.6]
+        hist2_x = [0.8, 1.5, 1.5, 0.6, 0.59,
+                   1.0, 0.8, 1.7, 0.5, 0.8,
+                   -0.3, 1.2, 0.56, 0.3, 2.2]
+
+        hist_data = [hist1_x] + [hist2_x]
+        group_labels = ['2012', '2013']
+
+        dp = tls.FigureFactory.create_distplot(hist_data, group_labels,
+                                               histnorm='probability',
                                                show_rug=False, bin_size=.2)
         dp['layout'].update(title='Dist Plot')
 
@@ -151,7 +261,7 @@ class TestDistplot(TestCase):
                                    'yaxis': 'y1'}
         self.assertEqual(dp['data'][1], expected_dp_data_hist_2)
 
-        def test_distplot_binsize_array(self):
+        def test_distplot_binsize_array_prob(self):
             hist1_x = [0.8, 1.2, 0.2, 0.6, 1.6, -0.9, -0.07, 1.95, 0.9, -0.2,
                        -0.5, 0.3, 0.4, -0.37, 0.6]
             hist2_x = [0.8, 1.5, 1.5, 0.6, 0.59, 1.0, 0.8, 1.7, 0.5, 0.8, -0.3,
@@ -161,19 +271,21 @@ class TestDistplot(TestCase):
             group_labels = ['2012', '2013']
 
             dp = tls.FigureFactory.create_distplot(hist_data, group_labels,
+                                                   histnorm='probability',
                                                    show_rug=False,
                                                    bin_size=[.2, .2])
 
             expected_dp_data_hist_1 = {'autobinx': False,
-                                       'histnorm': 'probability',
+                                       'histnorm': 'probability density',
                                        'legendgroup': '2012',
-                                       'marker': {'color': 'rgb(31, 119, 180)'},
+                                       'marker':
+                                       {'color': 'rgb(31, 119, 180)'},
                                        'name': '2012',
                                        'opacity': 0.7,
                                        'type': 'histogram',
-                                       'x': [0.8, 1.2, 0.2, 0.6, 1.6, -0.9, -0.07,
-                                             1.95, 0.9, -0.2, -0.5, 0.3, 0.4,
-                                             -0.37, 0.6],
+                                       'x': [0.8, 1.2, 0.2, 0.6, 1.6, -0.9,
+                                             -0.07, 1.95, 0.9, -0.2, -0.5, 0.3,
+                                             0.4, -0.37, 0.6],
                                        'xaxis': 'x1',
                                        'xbins': {'end': 1.95, 'size': 0.2,
                                                  'start': -0.9},
@@ -181,15 +293,64 @@ class TestDistplot(TestCase):
             self.assertEqual(dp['data'][0], expected_dp_data_hist_1)
 
             expected_dp_data_hist_2 = {'autobinx': False,
-                                       'histnorm': 'probability',
+                                       'histnorm': 'probability density',
                                        'legendgroup': '2013',
-                                       'marker': {'color': 'rgb(255, 127, 14)'},
+                                       'marker':
+                                       {'color': 'rgb(255, 127, 14)'},
                                        'name': '2013',
                                        'opacity': 0.7,
                                        'type': 'histogram',
-                                       'x': [0.8, 1.5, 1.5, 0.6, 0.59, 1.0, 0.8,
-                                             1.7, 0.5, 0.8, -0.3, 1.2, 0.56, 0.3,
-                                             2.2],
+                                       'x': [0.8, 1.5, 1.5, 0.6, 0.59, 1.0,
+                                             0.8, 1.7, 0.5, 0.8, -0.3, 1.2,
+                                             0.56, 0.3, 2.2],
+                                       'xaxis': 'x1',
+                                       'xbins': {'end': 2.2, 'size': 0.2,
+                                                 'start': -0.3},
+                                       'yaxis': 'y1'}
+            self.assertEqual(dp['data'][1], expected_dp_data_hist_2)
+
+        def test_distplot_binsize_array_prob_density(self):
+            hist1_x = [0.8, 1.2, 0.2, 0.6, 1.6, -0.9, -0.07, 1.95, 0.9, -0.2,
+                       -0.5, 0.3, 0.4, -0.37, 0.6]
+            hist2_x = [0.8, 1.5, 1.5, 0.6, 0.59, 1.0, 0.8, 1.7, 0.5, 0.8, -0.3,
+                       1.2, 0.56, 0.3, 2.2]
+
+            hist_data = [hist1_x, hist2_x]
+            group_labels = ['2012', '2013']
+
+            dp = tls.FigureFactory.create_distplot(hist_data, group_labels,
+                                                   histnorm='probability',
+                                                   show_rug=False,
+                                                   bin_size=[.2, .2])
+
+            expected_dp_data_hist_1 = {'autobinx': False,
+                                       'histnorm': 'probability density',
+                                       'legendgroup': '2012',
+                                       'marker':
+                                       {'color': 'rgb(31, 119, 180)'},
+                                       'name': '2012',
+                                       'opacity': 0.7,
+                                       'type': 'histogram',
+                                       'x': [0.8, 1.2, 0.2, 0.6, 1.6, -0.9,
+                                             -0.07, 1.95, 0.9, -0.2, -0.5, 0.3,
+                                             0.4, -0.37, 0.6],
+                                       'xaxis': 'x1',
+                                       'xbins': {'end': 1.95, 'size': 0.2,
+                                                 'start': -0.9},
+                                       'yaxis': 'y1'}
+            self.assertEqual(dp['data'][0], expected_dp_data_hist_1)
+
+            expected_dp_data_hist_2 = {'autobinx': False,
+                                       'histnorm': 'probability density',
+                                       'legendgroup': '2013',
+                                       'marker':
+                                       {'color': 'rgb(255, 127, 14)'},
+                                       'name': '2013',
+                                       'opacity': 0.7,
+                                       'type': 'histogram',
+                                       'x': [0.8, 1.5, 1.5, 0.6, 0.59, 1.0,
+                                             0.8, 1.7, 0.5, 0.8, -0.3, 1.2,
+                                             0.56, 0.3, 2.2],
                                        'xaxis': 'x1',
                                        'xbins': {'end': 2.2, 'size': 0.2,
                                                  'start': -0.3},
@@ -1057,3 +1218,225 @@ class TestScatterPlotMatrix(NumpyTestUtilsMixin, TestCase):
 
         self.assert_dict_equal(test_scatter_plot_matrix['layout'],
                                exp_scatter_plot_matrix['layout'])
+
+
+class TestGantt(NumpyTestUtilsMixin, TestCase):
+
+    def test_df_dataframe(self):
+
+        # validate df when it is a dataframe
+
+        df1 = pd.DataFrame([[2, 'Apple']], columns=['Numbers', 'Fruit'])
+        self.assertRaises(PlotlyError, tls.FigureFactory.create_gantt, df1)
+
+        df2 = pd.DataFrame([['Job A', '2009-01-01', '2009-02-30', 25],
+                            ['Job B', '2009-01-01', '2009-02-30', '25']],
+                           columns=['Task', 'Start', 'Finish', 'Complete'])
+        self.assertRaisesRegexp(PlotlyError,
+                                "The values in the 'Complete' column must "
+                                "be between 0 and 100.",
+                                tls.FigureFactory.create_gantt, df2)
+
+    def test_df_list(self):
+
+        # validate df when it is a list
+
+        df1 = 42
+        self.assertRaisesRegexp(PlotlyError,
+                                "You must input either a dataframe or a list "
+                                "of dictionaries.",
+                                tls.FigureFactory.create_gantt, df1)
+
+        df2 = []
+        self.assertRaisesRegexp(PlotlyError,
+                                "Your list is empty. It must contain "
+                                "at least one dictionary.",
+                                tls.FigureFactory.create_gantt, df2)
+
+        df3 = [42]
+        self.assertRaisesRegexp(PlotlyError,
+                                "Your list must only include dictionaries.",
+                                tls.FigureFactory.create_gantt, df3)
+
+        df4 = [{'apple': 2}]
+        self.assertRaises(PlotlyError, tls.FigureFactory.create_gantt, df4)
+
+        df5 = [{'Task': 'A Job',
+                'Start': '2009-01-01',
+                'Finish': '2009-02-30'},
+               {'Task': 'A Job',
+                'Start': '2009-01-01',
+                'Finish': '2009-02-30',
+                'Complete': 25}]
+        self.assertRaisesRegexp(PlotlyError,
+                                "If you are using 'Complete' as a dictionary "
+                                "key, make sure each dictionary has this key "
+                                "with an assigned value between 0 and 100.",
+                                tls.FigureFactory.create_gantt, df5)
+
+        df6 = [{'Task': 'A Job',
+                'Start': '2009-01-01',
+                'Finish': '2009-02-30',
+                'Complete': 55},
+               {'Task': 'A Job',
+                'Start': '2009-01-01',
+                'Finish': '2009-02-30',
+                'Complete': 'string'}]
+        self.assertRaisesRegexp(PlotlyError,
+                                "The values in the 'Complete' column must "
+                                "be between 0 and 100.",
+                                tls.FigureFactory.create_gantt, df6)
+
+    def test_valid_colors(self):
+
+      # check: if color choices are valid
+
+        df = [{'Task': 'A Job',
+               'Start': '2009-01-01',
+               'Finish': '2009-02-30',
+               'Complete': 55},
+              {'Task': 'A Job',
+               'Start': '2009-01-01',
+               'Finish': '2009-02-30',
+               'Complete': 65}]
+
+        self.assertRaises(PlotlyError, tls.FigureFactory.create_gantt,
+                          df, colors='Weird')
+
+        pattern1 = (
+            "If 'colors' is a list then its items must be tripets of the "
+            "form a,b,c or 'rgbx,y,z' where a,b,c are between 0 and 1 "
+            "inclusive and x,y,z are between 0 and 255 inclusive."
+        )
+
+        self.assertRaisesRegexp(PlotlyError, pattern1,
+                                tls.FigureFactory.create_gantt, df, colors=25)
+
+        pattern2 = (
+            "Whoops! The elements in your rgb colors tuples "
+            "cannot exceed 255.0."
+        )
+
+        self.assertRaisesRegexp(PlotlyError, pattern2,
+                                tls.FigureFactory.create_gantt, df,
+                                colors=['rgb(1, 2, 3)', 'rgb(300, 2, 3)'])
+
+        pattern3 = (
+            "Whoops! The elements in your rgb colors tuples "
+            "cannot exceed 1.0."
+        )
+
+        self.assertRaisesRegexp(PlotlyError, pattern3,
+                                tls.FigureFactory.create_gantt, df,
+                                colors=[(0.1, 0.2, 0.3), (0.6, 0.8, 1.2)])
+
+    def test_use_colorscale(self):
+
+        # checks: 'Complete' in inputted array or list
+
+        df = [{'Task': 'A Job',
+               'Start': '2009-01-01',
+               'Finish': '2009-02-30'},
+              {'Task': 'A Job',
+               'Start': '2009-01-01',
+               'Finish': '2009-02-30'}]
+
+        pattern = (
+            "In order to use colorscale there must be a "
+            "'Complete' column in the chart."
+        )
+        self.assertRaisesRegexp(PlotlyError, pattern,
+                                tls.FigureFactory.create_gantt, df,
+                                use_colorscale=True)
+
+    def test_gantt_all_args(self):
+
+        # check if gantt chart matches with expected output
+
+        df = [dict(Task="Run",
+                   Start='2010-01-01',
+                   Finish='2011-02-02',
+                   Complete=0),
+              dict(Task="Fast",
+                   Start='2011-01-01',
+                   Finish='2012-06-05',
+                   Complete=25)]
+
+        test_gantt_chart = tls.FigureFactory.create_gantt(
+            df, colors='Blues', use_colorscale=True, reverse_colors=True,
+            title='Title', bar_width=0.5, showgrid_x=True, showgrid_y=True,
+            height=500, width=500
+        )
+
+        exp_gantt_chart = {
+            'data': [{'marker': {'color': 'white'},
+                      'name': '',
+                      'x': ['2010-01-01', '2011-02-02'],
+                      'y': [0, 0]},
+                     {'marker': {'color': 'white'},
+                      'name': '',
+                      'x': ['2011-01-01', '2012-06-05'],
+                      'y': [1, 1]}],
+            'layout': {'height': 500,
+                       'hovermode': 'closest',
+                       'shapes': [{'fillcolor': 'rgb(220.0, 220.0, 220.0)',
+                                   'line': {'width': 0},
+                                   'opacity': 1,
+                                   'type': 'rect',
+                                   'x0': '2010-01-01',
+                                   'x1': '2011-02-02',
+                                   'xref': 'x',
+                                   'y0': -0.5,
+                                   'y1': 0.5,
+                                   'yref': 'y'},
+                                  {'fillcolor': 'rgb(166.25, 167.5, 208.0)',
+                                   'line': {'width': 0},
+                                   'opacity': 1,
+                                   'type': 'rect',
+                                   'x0': '2011-01-01',
+                                   'x1': '2012-06-05',
+                                   'xref': 'x',
+                                   'y0': 0.5,
+                                   'y1': 1.5,
+                                   'yref': 'y'}],
+                       'showlegend': False,
+                       'title': 'Title',
+                       'width': 500,
+                       'xaxis': {
+                           'rangeselector': {
+                               'buttons': [{'count': 7, 'label': '1w',
+                                            'step': 'day',
+                                            'stepmode': 'backward'},
+                                           {'count': 1, 'label': '1m',
+                                            'step': 'month',
+                                            'stepmode': 'backward'},
+                                           {'count': 6, 'label': '6m',
+                                            'step': 'month',
+                                            'stepmode': 'backward'},
+                                           {'count': 1, 'label': 'YTD',
+                                            'step': 'year',
+                                            'stepmode': 'todate'},
+                                           {'count': 1, 'label': '1y',
+                                            'step': 'year',
+                                            'stepmode': 'backward'},
+                                           {'step': 'all'}]
+                           },
+                           'showgrid': True,
+                           'type': 'date',
+                           'zeroline': False},
+                       'yaxis': {'autorange': False,
+                                 'range': [-1, 3],
+                                 'showgrid': True,
+                                 'ticktext': ['Run', 'Fast'],
+                                 'tickvals': [0, 1],
+                                 'zeroline': False}}
+        }
+
+        self.assert_dict_equal(test_gantt_chart['data'][0],
+                               exp_gantt_chart['data'][0])
+
+        self.assert_dict_equal(test_gantt_chart['data'][1],
+                               exp_gantt_chart['data'][1])
+
+        self.assert_dict_equal(test_gantt_chart['layout'],
+                               exp_gantt_chart['layout'])

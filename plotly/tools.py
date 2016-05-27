@@ -28,6 +28,9 @@ DEFAULT_PLOTLY_COLORS = ['rgb(31, 119, 180)', 'rgb(255, 127, 14)',
                          'rgb(227, 119, 194)', 'rgb(127, 127, 127)',
                          'rgb(188, 189, 34)', 'rgb(23, 190, 207)']
 
+DEFAULT_HISTNORM = 'probability density'
+ALTERNATIVE_HISTNORM = 'probability'
+
 
 # Warning format
 def warning_on_one_line(message, category, filename, lineno,
@@ -1449,6 +1452,470 @@ class FigureFactory(object):
     FigureFactory.create_annotated_heatmap, or FigureFactory.create_table for
     more information and examples of a specific chart type.
     """
+
+    @staticmethod
+    def _validate_gantt(df):
+        """
+        Validates the inputted dataframe or list
+        """
+        from numbers import Number
+        REQ_GANTT_KEYS = ['Task', 'Start', 'Finish']
+
+        if isinstance(df, pd.core.frame.DataFrame):
+            # validate if df is a dataframe
+            for key in REQ_GANTT_KEYS:
+                if key not in df:
+                    raise exceptions.PlotlyError("The columns in your data"
+                                                 "frame must be one "
+                                                 "of".format(REQ_GANTT_KEYS))
+            # check if 'Complete' column has 'nan' values
+            # or fall outside the [0, 100] interval
+            if 'Complete' in df:
+                for percentage in df['Complete']:
+                    if not isinstance(percentage, Number):
+                        raise exceptions.PlotlyError("The values in the "
+                                                     "'Complete' column must "
+                                                     "be between 0 and 100.")
+
+            num_of_rows = len(df.index)
+            chart = []
+            for index in range(num_of_rows):
+                task_dict = {}
+                task_dict['Task'] = df.ix[index]['Task']
+                task_dict['Start'] = df.ix[index]['Start']
+                task_dict['Finish'] = df.ix[index]['Finish']
+                if 'Complete' in df:
+                    task_dict['Complete'] = df.ix[index]['Complete']
+                chart.append(task_dict)
+            return chart
+
+        if not isinstance(df, list):
+            raise exceptions.PlotlyError("You must input either a dataframe "
+                                         "or a list of dictionaries.")
+        # validate if df is a list
+        if len(df) <= 0:
+            raise exceptions.PlotlyError("Your list is empty. It must contain "
+                                         "at least one dictionary.")
+        if not isinstance(df[0], dict):
+            raise exceptions.PlotlyError("Your list must only "
+                                         "include dictionaries.")
+        for key in REQ_GANTT_KEYS:
+            for dictionary in df:
+                if key not in dictionary:
+                    raise exceptions.PlotlyError("The columns in your data"
+                                                 "frame must be one "
+                                                 "of".format(REQ_GANTT_KEYS))
+        if any('Complete' in dictionary for dictionary in df):
+            if not all('Complete' in dictionary for dictionary in df):
+                raise exceptions.PlotlyError("If you are using 'Complete' "
+                                             "as a dictionary key, make "
+                                             "sure each dictionary has "
+                                             "this key with an assigned "
+                                             "value between 0 and 100.")
+        if 'Complete' in df[0]:
+            for dictioanry in df:
+                    if not isinstance(dictionary['Complete'], Number):
+                        raise exceptions.PlotlyError("The values in the "
+                                                     "'Complete' column must "
+                                                     "be between 0 and 100.")
+        return df
+
+    @staticmethod
+    def _gantt(chart, colors, use_colorscale, title,
+               bar_width, showgrid_x, showgrid_y,
+               height, width, tasks=None,
+               task_names=None, data=None):
+        """
+        Refer to FigureFactory.create_gantt() for docstring
+        """
+        if tasks is None:
+            tasks = []
+        if task_names is None:
+            task_names = []
+        if data is None:
+            data = []
+
+        for index in range(len(chart)):
+            task = dict(x0=chart[index]['Start'],
+                        x1=chart[index]['Finish'],
+                        name=chart[index]['Task'])
+            tasks.append(task)
+
+        shape_template = {
+            'type': 'rect',
+            'xref': 'x',
+            'yref': 'y',
+            'opacity': 1,
+            'line': {
+                'width': 0,
+            },
+            'yref': 'y',
+        }
+
+        color_index = 0
+        for index in range(len(tasks)):
+            tn = tasks[index]['name']
+            task_names.append(tn)
+            del tasks[index]['name']
+            tasks[index].update(shape_template)
+            tasks[index]['y0'] = index - bar_width
+            tasks[index]['y1'] = index + bar_width
+
+            # check if colors need to be looped
+            if color_index >= len(colors):
+                color_index = 0
+            tasks[index]['fillcolor'] = colors[color_index]
+            # Add a line for hover text and autorange
+            data.append(
+                dict(
+                    x=[tasks[index]['x0'], tasks[index]['x1']],
+                    y=[index, index],
+                    name='',
+                    marker={'color': 'white'}
+                )
+            )
+            color_index += 1
+
+        layout = dict(
+            title=title,
+            showlegend=False,
+            height=height,
+            width=width,
+            shapes=[],
+            hovermode='closest',
+            yaxis=dict(
+                showgrid=showgrid_y,
+                ticktext=task_names,
+                tickvals=list(range(len(tasks))),
+                range=[-1, len(tasks) + 1],
+                autorange=False,
+                zeroline=False,
+            ),
+            xaxis=dict(
+                showgrid=showgrid_x,
+                zeroline=False,
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=7,
+                             label='1w',
+                             step='day',
+                             stepmode='backward'),
+                        dict(count=1,
+                             label='1m',
+                             step='month',
+                             stepmode='backward'),
+                        dict(count=6,
+                             label='6m',
+                             step='month',
+                             stepmode='backward'),
+                        dict(count=1,
+                             label='YTD',
+                             step='year',
+                             stepmode='todate'),
+                        dict(count=1,
+                             label='1y',
+                             step='year',
+                             stepmode='backward'),
+                        dict(step='all')
+                    ])
+                ),
+                type='date'
+            )
+        )
+        layout['shapes'] = tasks
+
+        fig = dict(data=data, layout=layout)
+        return fig
+
+    @staticmethod
+    def _gantt_colorscale(chart, colors, use_colorscale, title,
+                          bar_width, showgrid_x, showgrid_y,
+                          height, width, tasks=None,
+                          task_names=None, data=None):
+        """
+        Refer to FigureFactory.create_gantt() for docstring
+        """
+        if tasks is None:
+            tasks = []
+        if task_names is None:
+            task_names = []
+        if data is None:
+            data = []
+
+        for index in range(len(chart)):
+            task = dict(x0=chart[index]['Start'],
+                        x1=chart[index]['Finish'],
+                        name=chart[index]['Task'])
+            tasks.append(task)
+
+        shape_template = {
+            'type': 'rect',
+            'xref': 'x',
+            'yref': 'y',
+            'opacity': 1,
+            'line': {
+                'width': 0,
+            },
+            'yref': 'y',
+        }
+
+        for index in range(len(tasks)):
+            tn = tasks[index]['name']
+            task_names.append(tn)
+            del tasks[index]['name']
+            tasks[index].update(shape_template)
+            tasks[index]['y0'] = index - bar_width
+            tasks[index]['y1'] = index + bar_width
+
+            # compute the color for task based on 'Completed' column
+            colors = FigureFactory._unlabel_rgb(colors)
+            lowcolor = colors[0]
+            highcolor = colors[1]
+
+            intermed = (chart[index]['Complete'])/100.0
+            intermed_color = FigureFactory._find_intermediate_color(lowcolor,
+                                                                    highcolor,
+                                                                    intermed)
+            intermed_color = FigureFactory._label_rgb(intermed_color)
+            tasks[index]['fillcolor'] = intermed_color
+            # relabel colors with 'rgb'
+            colors = FigureFactory._label_rgb(colors)
+
+            # add a line for hover text and autorange
+            data.append(
+                dict(
+                    x=[tasks[index]['x0'], tasks[index]['x1']],
+                    y=[index, index],
+                    name='',
+                    marker={'color': 'white'}
+                )
+            )
+
+        # generate dummy data for colorscale visibility
+        data.append(
+            dict(
+                x=[tasks[index]['x0'], tasks[index]['x0']],
+                y=[index, index],
+                name='',
+                marker={'color': 'white',
+                        'colorscale': [[0, colors[0]], [1, colors[1]]],
+                        'showscale': True,
+                        'cmax': 100,
+                        'cmin': 0}
+            )
+        )
+
+        layout = dict(
+            title=title,
+            showlegend=False,
+            height=height,
+            width=width,
+            shapes=[],
+            hovermode='closest',
+            yaxis=dict(
+                showgrid=showgrid_y,
+                ticktext=task_names,
+                tickvals=list(range(len(tasks))),
+                range=[-1, len(tasks) + 1],
+                autorange=False,
+                zeroline=False,
+            ),
+            xaxis=dict(
+                showgrid=showgrid_x,
+                zeroline=False,
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=7,
+                             label='1w',
+                             step='day',
+                             stepmode='backward'),
+                        dict(count=1,
+                             label='1m',
+                             step='month',
+                             stepmode='backward'),
+                        dict(count=6,
+                             label='6m',
+                             step='month',
+                             stepmode='backward'),
+                        dict(count=1,
+                             label='YTD',
+                             step='year',
+                             stepmode='todate'),
+                        dict(count=1,
+                             label='1y',
+                             step='year',
+                             stepmode='backward'),
+                        dict(step='all')
+                    ])
+                ),
+                type='date'
+            )
+        )
+        layout['shapes'] = tasks
+
+        fig = dict(data=data, layout=layout)
+        return fig
+
+    @staticmethod
+    def create_gantt(df, colors=None, use_colorscale=False,
+                     reverse_colors=False, title='Gantt Chart',
+                     bar_width=0.2, showgrid_x=False, showgrid_y=False,
+                     height=600, width=900, tasks=None,
+                     task_names=None, data=None):
+        """
+        Returns figure for a gantt chart
+
+        :param (array|list) df: input data for gantt chart. Must be either a
+            a dataframe or a list. If dataframe, the columns must include
+            'Task', 'Start' and 'Finish'; 'Complete' is optional and is used
+            to colorscale the bars. If a list, it must contain dictionaries
+            with the same required column headers, with 'Complete' optional
+            in the same way as the dataframe
+        :param (list) colors: a list of 'rgb(a, b, c)' colors where a, b and c
+            are between 0 and 255. Can also be a Plotly colorscale but this is
+            will result in only a 2-color cycle. If number of colors is less
+            than the total number of tasks, colors will cycle
+        :param (bool) use_colorscale: enables colorscale with 'Complete' as
+            the index
+        :param (bool) reverse_colors: reverses the order of selected colors
+        :param (str) title: the title of the chart
+        :param (float) bar_width: the width of the horizontal bars in the plot
+        :param (bool) showgrid_x: show/hide the x-axis grid
+        :param (bool) showgrid_y: show/hide the y-axis grid
+        :param (float) height: the height of the chart
+        :param (float) width: the width of the chart
+
+        Example 1: Simple Gantt Chart
+        ```
+        import plotly.plotly as py
+        from plotly.tools import FigureFactory as FF
+
+        # Make data for chart
+        df = [dict(Task="Job A", Start='2009-01-01', Finish='2009-02-30'),
+              dict(Task="Job B", Start='2009-03-05', Finish='2009-04-15'),
+              dict(Task="Job C", Start='2009-02-20', Finish='2009-05-30')]
+
+        # Create a figure
+        fig = FF.create_gantt(df)
+
+        # Plot the data
+        py.iplot(fig, filename='Gantt Chart', world_readable=True)
+        ```
+
+        Example 2: Colormap by 'Complete' Variable
+        ```
+        import plotly.plotly as py
+        from plotly.tools import FigureFactory as FF
+
+        # Make data for chart
+        df = [dict(Task="Job A", Start='2009-01-01',
+                   Finish='2009-02-30', Complete=10),
+              dict(Task="Job B", Start='2009-03-05',
+                   Finish='2009-04-15', Complete=60),
+              dict(Task="Job C", Start='2009-02-20',
+                   Finish='2009-05-30', Complete=95)]
+
+        # Create a figure with Plotly colorscale
+        fig = FF.create_gantt(df, use_colorscale=True, colors='Blues',
+                              bar_width=0.5, showgrid_x=True, showgrid_y=True)
+
+        # Plot the data
+        py.iplot(fig, filename='Colormap Gantt Chart', world_readable=True)
+        ```
+        """
+        plotly_scales = {'Greys': ['rgb(0,0,0)', 'rgb(255,255,255)'],
+                         'YlGnBu': ['rgb(8,29,88)', 'rgb(255,255,217)'],
+                         'Greens': ['rgb(0,68,27)', 'rgb(247,252,245)'],
+                         'YlOrRd': ['rgb(128,0,38)', 'rgb(255,255,204)'],
+                         'Bluered': ['rgb(0,0,255)', 'rgb(255,0,0)'],
+                         'RdBu': ['rgb(5,10,172)', 'rgb(178,10,28)'],
+                         'Reds': ['rgb(220,220,220)', 'rgb(178,10,28)'],
+                         'Blues': ['rgb(5,10,172)', 'rgb(220,220,220)'],
+                         'Picnic': ['rgb(0,0,255)', 'rgb(255,0,0)'],
+                         'Rainbow': ['rgb(150,0,90)', 'rgb(255,0,0)'],
+                         'Portland': ['rgb(12,51,131)', 'rgb(217,30,30)'],
+                         'Jet': ['rgb(0,0,131)', 'rgb(128,0,0)'],
+                         'Hot': ['rgb(0,0,0)', 'rgb(255,255,255)'],
+                         'Blackbody': ['rgb(0,0,0)', 'rgb(160,200,255)'],
+                         'Earth': ['rgb(0,0,130)', 'rgb(255,255,255)'],
+                         'Electric': ['rgb(0,0,0)', 'rgb(255,250,220)'],
+                         'Viridis': ['rgb(68,1,84)', 'rgb(253,231,37)']}
+
+        # validate gantt input data
+        chart = FigureFactory._validate_gantt(df)
+
+        if colors is None:
+            colors = DEFAULT_PLOTLY_COLORS
+
+        # validate color choice
+        if isinstance(colors, str):
+            if colors not in plotly_scales:
+                scale_keys = list(plotly_scales.keys())
+                raise exceptions.PlotlyError("You must pick a valid "
+                                             "plotly colorscale "
+                                             "name from "
+                                             "{}".format(scale_keys))
+
+            colors = [plotly_scales[colors][0],
+                      plotly_scales[colors][1]]
+
+        else:
+            if not isinstance(colors, list):
+                raise exceptions.PlotlyError("If 'colors' is a list then "
+                                             "its items must be tripets "
+                                             "of the form a,b,c or "
+                                             "'rgbx,y,z' where a,b,c are "
+                                             "between 0 and 1 inclusive "
+                                             "and x,y,z are between 0 "
+                                             "and 255 inclusive.")
+            if 'rgb' in colors[0]:
+                colors = FigureFactory._unlabel_rgb(colors)
+                for color in colors:
+                    for index in range(3):
+                        if color[index] > 255.0:
+                            raise exceptions.PlotlyError("Whoops! The "
+                                                         "elements in your "
+                                                         "rgb colors "
+                                                         "tuples cannot "
+                                                         "exceed 255.0.")
+                colors = FigureFactory._label_rgb(colors)
+
+            if isinstance(colors[0], tuple):
+                for color in colors:
+                    for index in range(3):
+                        if color[index] > 1.0:
+                            raise exceptions.PlotlyError("Whoops! The "
+                                                         "elements in your "
+                                                         "rgb colors "
+                                                         "tuples cannot "
+                                                         "exceed 1.0.")
+                colors = FigureFactory._convert_to_RGB_255(colors)
+                colors = FigureFactory._label_rgb(colors)
+
+        # reverse colors if 'reverse_colors' is True
+        if reverse_colors is True:
+            colors.reverse()
+
+        if use_colorscale is False:
+            fig = FigureFactory._gantt(chart, colors, use_colorscale, title,
+                                       bar_width, showgrid_x, showgrid_y,
+                                       height, width, tasks=None,
+                                       task_names=None, data=None)
+            return fig
+
+        else:
+            if 'Complete' not in chart[0]:
+                raise exceptions.PlotlyError("In order to use colorscale "
+                                             "there must be a 'Complete' "
+                                             "column in the chart.")
+
+            fig = FigureFactory._gantt_colorscale(chart, colors,
+                                                  use_colorscale, title,
+                                                  bar_width, showgrid_x,
+                                                  showgrid_y, height,
+                                                  width, tasks=None,
+                                                  task_names=None, data=None)
+            return fig
 
     @staticmethod
     def _find_intermediate_color(lowcolor, highcolor, intermed):
@@ -2881,12 +3348,15 @@ class FigureFactory(object):
         same list with each tuple replaced by a string 'rgb(a, b, c)'
 
         """
-        colors_label = []
-        for color in colors:
-            color_label = 'rgb{}'.format(color)
-            colors_label.append(color_label)
+        if isinstance(colors, tuple):
+            return 'rgb{}'.format(colors)
+        else:
+            colors_label = []
+            for color in colors:
+                color_label = 'rgb{}'.format(color)
+                colors_label.append(color_label)
 
-        return colors_label
+            return colors_label
 
     @staticmethod
     def _unlabel_rgb(colors):
@@ -4019,7 +4489,7 @@ class FigureFactory(object):
     @staticmethod
     def create_distplot(hist_data, group_labels,
                         bin_size=1., curve_type='kde',
-                        colors=[], rug_text=[],
+                        colors=[], rug_text=[], histnorm=DEFAULT_HISTNORM,
                         show_hist=True, show_curve=True,
                         show_rug=True):
         """
@@ -4036,6 +4506,8 @@ class FigureFactory(object):
         :param (list[float]|float) bin_size: Size of histogram bins.
             Default = 1.
         :param (str) curve_type: 'kde' or 'normal'. Default = 'kde'
+        :param (str) histnorm: 'probability density' or 'probability'
+            Default = 'probability density'
         :param (bool) show_hist: Add histogram to distplot? Default = True
         :param (bool) show_curve: Add curve to distplot? Default = True
         :param (bool) show_rug: Add rug to distplot? Default = True
@@ -4144,23 +4616,23 @@ class FigureFactory(object):
             bin_size = [bin_size]*len(hist_data)
 
         hist = _Distplot(
-            hist_data, group_labels, bin_size,
+            hist_data, histnorm, group_labels, bin_size,
             curve_type, colors, rug_text,
             show_hist, show_curve).make_hist()
 
         if curve_type == 'normal':
             curve = _Distplot(
-                hist_data, group_labels, bin_size,
+                hist_data, histnorm, group_labels, bin_size,
                 curve_type, colors, rug_text,
                 show_hist, show_curve).make_normal()
         else:
             curve = _Distplot(
-                hist_data, group_labels, bin_size,
+                hist_data, histnorm, group_labels, bin_size,
                 curve_type, colors, rug_text,
                 show_hist, show_curve).make_kde()
 
         rug = _Distplot(
-            hist_data, group_labels, bin_size,
+            hist_data, histnorm, group_labels, bin_size,
             curve_type, colors, rug_text,
             show_hist, show_curve).make_rug()
 
@@ -5036,10 +5508,11 @@ class _Distplot(FigureFactory):
     """
     Refer to TraceFactory.create_distplot() for docstring
     """
-    def __init__(self, hist_data, group_labels,
+    def __init__(self, hist_data, histnorm, group_labels,
                  bin_size, curve_type, colors,
                  rug_text, show_hist, show_curve):
         self.hist_data = hist_data
+        self.histnorm = histnorm
         self.group_labels = group_labels
         self.bin_size = bin_size
         self.show_hist = show_hist
@@ -5081,7 +5554,7 @@ class _Distplot(FigureFactory):
                                x=self.hist_data[index],
                                xaxis='x1',
                                yaxis='y1',
-                               histnorm='probability',
+                               histnorm=self.histnorm,
                                name=self.group_labels[index],
                                legendgroup=self.group_labels[index],
                                marker=dict(color=self.colors[index]),
@@ -5108,7 +5581,9 @@ class _Distplot(FigureFactory):
             self.curve_y[index] = (scipy.stats.gaussian_kde
                                    (self.hist_data[index])
                                    (self.curve_x[index]))
-            self.curve_y[index] *= self.bin_size[index]
+
+            if self.histnorm == ALTERNATIVE_HISTNORM:
+                self.curve_y[index] *= self.bin_size[index]
 
         for index in range(self.trace_number):
             curve[index] = dict(type='scatter',
@@ -5143,7 +5618,9 @@ class _Distplot(FigureFactory):
                                    / 500 for x in range(500)]
             self.curve_y[index] = scipy.stats.norm.pdf(
                 self.curve_x[index], loc=mean[index], scale=sd[index])
-            self.curve_y[index] *= self.bin_size[index]
+
+            if self.histnorm == ALTERNATIVE_HISTNORM:
+                self.curve_y[index] *= self.bin_size[index]
 
         for index in range(self.trace_number):
             curve[index] = dict(type='scatter',
@@ -5629,4 +6106,3 @@ class _Table(FigureFactory):
                         font=dict(color=font_color),
                         showarrow=False))
         return annotations
-
